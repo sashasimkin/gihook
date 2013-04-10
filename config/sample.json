@@ -1,0 +1,9 @@
+{
+    "path": "/path/to/project",
+    "user": "shell-user",
+    "commands": [
+        "git pull origin master",
+        "git fetch",
+	"service apache2 restart"
+    ]
+}
