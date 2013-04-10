@@ -1,11 +1,21 @@
 //Rewrite for logging to files
+var dbg = true;
+function log(msg, file){
+    if(dbg && file){
+        //Write to file
+    } else {
+        console.log(msg);
+    }
+    
+    return false;
+}
 var log = console.log;
 //Dependencies
 var http = require("http");
 var fs = require("fs");
 var path = require("path");
 // var os = require("os");
-// var exec = require('child_process').exec;
+var exec = require('child_process').exec;
 //Runtime variables
 var cfg_dir = __dirname + '/config/';
 var cfg_map = {};
@@ -59,6 +69,7 @@ http.createServer(function(request, response) {
     if(request.url == 'favicon.ico'){
         return request.connection.destroy();
     }
+    
     if(request.method == 'POST' && cfg_map[request.url]){
         var body = '';
         request.on('data', function (data) {
@@ -70,12 +81,32 @@ http.createServer(function(request, response) {
         });
         
         request.on('end', function () {
-            log('End responce');
+            var cfg = cfg_map[request.url];
+            if(cfg.user){
+                //Change user
+            }
+            if(!fs.readdirSync(cfg.path)){
+                return log('Invalid path "' + cfg.path + '" in config "' + request.url + '"');
+            }
+            if(cfg.commands.length){
+                var handleExec = function(err, stdout, stderr) {
+                    if(err){log(err);}
+                    
+                    
+                };
+                for(var i in cfg.commands){
+                    exec(cfg.commands[i], {
+                        cwd: cfg.path,
+                        encoding: 'utf-8'
+                    }, handleExec);
+                }
+            }
+            //Do work according to hook data
+            log(body);
         });
     }
-    log(cfg_map);
     // on every request, we'll output 'Hello world'
-    response.end("Hello world from Cloud9 changed!");
+    response.end("I'm alive!");
 }).listen(process.env.PORT, process.env.IP);
 
 // Note: when spawning a server on Cloud9 IDE, 
