@@ -1,3 +1,5 @@
+process.env.IP = process.env.IP || '0.0.0.0';
+process.env.PORT = process.env.PORT || 6666;
 //Rewrite for logging to files
 var dbg = true;
 function log(msg, file){
@@ -9,13 +11,12 @@ function log(msg, file){
     
     return false;
 }
-var log = console.log;
 //Dependencies
 var http = require("http");
 var fs = require("fs");
 var path = require("path");
 // var os = require("os");
-var exec = require('child_process').exec;
+var child_process = require('child_process');
 //Runtime variables
 var cfg_dir = __dirname + '/config/';
 var cfg_map = {};
@@ -82,12 +83,17 @@ http.createServer(function(request, response) {
         
         request.on('end', function () {
             var cfg = cfg_map[request.url];
-            if(cfg.user){
-                //Change user
-            }
+            var spawn_options = {
+                encoding: "utf-8",
+                env: process.env
+            };
+            if(cfg.user) spawn_options.uid = cfg.user;
+            
             if(!fs.readdirSync(cfg.path)){
                 return log('Invalid path "' + cfg.path + '" in config "' + request.url + '"');
             }
+            spawn_options.path = cfg.path;
+            
             if(cfg.commands.length){
                 var handleExec = function(err, stdout, stderr) {
                     if(err){log(err);}
@@ -95,10 +101,17 @@ http.createServer(function(request, response) {
                     
                 };
                 for(var i in cfg.commands){
-                    exec(cfg.commands[i], {
-                        cwd: cfg.path,
-                        encoding: 'utf-8'
-                    }, handleExec);
+                    var commandArray = cfg.commands[i];
+                    var commandString = commandArray.join(' ');
+                    var result = child_process.spawn(commandArray.shift(), commandArray, spawn_options);
+                    
+                    result.stdout.on('data', function (data) {
+                        log('Command "' + commandString + '" with data: ' + data);
+                    });
+
+                    result.stderr.on('data', function (data) {
+                        log('Error in command "' + commandString + '" with data: ' + data);
+                    });
                 }
             }
             //Do work according to hook data
