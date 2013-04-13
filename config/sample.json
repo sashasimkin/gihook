@@ -1,8 +1,11 @@
 {
     "path": "/path/to/project",
+    "refs": [
+        "refs/heads/*"
+    ],
     "user": "shell-user",
     "commands": [
         ["git", "fetch", "--all"],
-        ["git", "reset", "--hard", "origin/master"],
+        ["git", "reset", "--hard", "origin/master"]
     ]
 }

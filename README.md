@@ -24,6 +24,7 @@ Config parameters:
 * user - System user, from which will ne performed commands
 * path - root path for project
 * commands - Shell commands, which will be performed after receive hook
+* refs - Non-required, if ref not match, any operation will not be performed. String or Array of Strings which be substituted to ref.match()
 
 
 TODO

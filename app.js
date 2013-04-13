@@ -3,10 +3,13 @@ process.env.PORT = process.env.PORT || 6666;
 //Rewrite for logging to files
 var dbg = true;
 function log(msg, file){
-    if(dbg && file){
+    if(file){
         //Write to file
     } else {
         console.log(msg);
+        if(dbg && typeof msg == 'object'){
+            console.dir(msg);
+        }
     }
     
     return false;
@@ -37,7 +40,7 @@ var processFile = function(fileName){
                 throw new Error('Bad config file "' + filePath + '". It need to be json object with path, user and commands keys.');
             }
         } catch(e) {
-            return log(e);
+            return log('Error while processing file "' + filePath + '": ' + e);
         }
         //Populate good cfg object to objects map by filename without extension
         return cfg_map[path.basename(fileName, fileExt)] = cfg;
@@ -82,6 +85,9 @@ http.createServer(function(request, response) {
         });
         
         request.on('end', function () {
+            var bodyObj = JSON.parse(body.trim())
+            log(body);
+            
             var cfg = cfg_map[request.url];
             var spawn_options = {
                 encoding: "utf-8",
@@ -92,7 +98,20 @@ http.createServer(function(request, response) {
             if(!fs.readdirSync(cfg.path)){
                 return log('Invalid path "' + cfg.path + '" in config "' + request.url + '"');
             }
-            spawn_options.path = cfg.path;
+            spawn_options.cwd = cfg.path;
+            
+            var refsType = typeof cfg.refs;
+            if(['string', 'object'].indexOf(refsType = typeof cfg.refs)){
+                if(refsType == 'string') cfg.refs = [cfg.refs];
+                var cont = false;
+                for(var key in cfg.refs){
+                    if(bodyObj.ref.match(cfg.refs[key])) {
+                        cont = true;
+                        break;
+                    }
+                }
+                if(!cont) return log('No refs match. Aborting.');
+            }
             
             if(cfg.commands.length){
                 var handleExec = function(err, stdout, stderr) {
@@ -100,6 +119,7 @@ http.createServer(function(request, response) {
                     
                     
                 };
+                
                 for(var i in cfg.commands){
                     var commandArray = cfg.commands[i];
                     var commandString = commandArray.join(' ');
@@ -115,7 +135,6 @@ http.createServer(function(request, response) {
                 }
             }
             //Do work according to hook data
-            log(body);
         });
     }
     // on every request, we'll output 'Hello world'
