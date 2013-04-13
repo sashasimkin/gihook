@@ -1,25 +1,9 @@
-process.env.IP = process.env.IP || '0.0.0.0';
-process.env.PORT = process.env.PORT || 6666;
-//Rewrite for logging to files
-var dbg = true;
-function log(msg, file){
-    if(file){
-        //Write to file
-    } else {
-        console.log(msg);
-        if(dbg && typeof msg == 'object'){
-            console.dir(msg);
-        }
-    }
-    
-    return false;
-}
 //Dependencies
 var http = require("http");
 var fs = require("fs");
 var path = require("path");
-// var os = require("os");
 var child_process = require('child_process');
+var log = require("./logging");
 //Runtime variables
 var cfg_dir = __dirname + '/config/';
 var cfg_map = {};
@@ -66,13 +50,21 @@ fs.readdir(cfg_dir, function(wtf, files){
     });
 });
 
+//Server options
+if(process.argv[3]){
+    var run_argv = process.argv[3].split(':');
+    process.env.IP = run_argv[0] || '0.0.0.0';
+    process.env.PORT = run_argv[1];
+}
+process.env.IP = process.env.IP || '0.0.0.0';
+process.env.PORT = process.env.PORT || 6666;
+
 // create a server
 http.createServer(function(request, response) {
     request.url = request.url.slice(1);
-    //Fucking favicon.ico!
-    if(request.url == 'favicon.ico'){
-        return request.connection.destroy();
-    }
+    
+    //Prevent favicon.ico requests
+    if(request.url == 'favicon.ico') return request.connection.destroy();
     
     if(request.method == 'POST' && cfg_map[request.url]){
         var body = '';
@@ -85,39 +77,41 @@ http.createServer(function(request, response) {
         });
         
         request.on('end', function () {
-            var bodyObj = JSON.parse(body.trim())
-            log(body);
-            
+            var bodyObj = JSON.parse(body.trim());
             var cfg = cfg_map[request.url];
             var spawn_options = {
                 encoding: "utf-8",
                 env: process.env
             };
-            if(cfg.user) spawn_options.uid = cfg.user;
             
-            if(!fs.readdirSync(cfg.path)){
+            if(cfg.user) {
+                spawn_options.uid = cfg.user;
+            }
+            
+            if(!fs.readdirSync(cfg.path)) {
                 return log('Invalid path "' + cfg.path + '" in config "' + request.url + '"');
             }
             spawn_options.cwd = cfg.path;
             
             var refsType = typeof cfg.refs;
-            if(['string', 'object'].indexOf(refsType = typeof cfg.refs)){
+            if(['string', 'object'].indexOf(refsType)){
                 if(refsType == 'string') cfg.refs = [cfg.refs];
-                var cont = false;
+                var refNotMatch = true;
                 for(var key in cfg.refs){
                     if(bodyObj.ref.match(cfg.refs[key])) {
-                        cont = true;
+                        refNotMatch = false;
                         break;
                     }
                 }
-                if(!cont) return log('No refs match. Aborting.');
+                if(refNotMatch) return log('No refs match. Aborting.');
             }
             
             if(cfg.commands.length){
-                var handleExec = function(err, stdout, stderr) {
-                    if(err){log(err);}
-                    
-                    
+                var onData = function(data) {
+                    log('Command "' + commandString + '" with data: ' + data);
+                };
+                var onError = function(data) {
+                    log('Error in command "' + commandString + '" with data: ' + data);
                 };
                 
                 for(var i in cfg.commands){
@@ -125,24 +119,15 @@ http.createServer(function(request, response) {
                     var commandString = commandArray.join(' ');
                     var result = child_process.spawn(commandArray.shift(), commandArray, spawn_options);
                     
-                    result.stdout.on('data', function (data) {
-                        log('Command "' + commandString + '" with data: ' + data);
-                    });
-
-                    result.stderr.on('data', function (data) {
-                        log('Error in command "' + commandString + '" with data: ' + data);
-                    });
+                    result.stdout.on('data', onData);
+                    result.stderr.on('data', onError);
                 }
             }
-            //Do work according to hook data
         });
+        
+        response.end("Deploy in queue!");
+    } else {
+        response.writeHead(404, 'There is nothing.');
+        response.end("404;");
     }
-    // on every request, we'll output 'Hello world'
-    response.end("I'm alive!");
 }).listen(process.env.PORT, process.env.IP);
-
-// Note: when spawning a server on Cloud9 IDE, 
-// listen on the process.env.PORT and process.env.IP environment variables
-
-// Click the 'Run' button at the top to start your server,
-// then click the URL that is emitted to the Output tab of the console
