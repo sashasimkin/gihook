@@ -80,7 +80,12 @@ http.createServer(function(request, response) {
         });
         
         request.on('end', function () {
-            var bodyObj = JSON.parse(body.trim());
+            try{
+                var bodyObj = JSON.parse(body);
+            } catch(e) {
+                return log('Malformed json. Request body: ' + body, request.url + '.error');
+            }
+            
             var cfg = cfg_map[request.url];
             var spawn_options = {
                 encoding: "utf-8",
@@ -96,17 +101,20 @@ http.createServer(function(request, response) {
             }
             spawn_options.cwd = cfg.path;
             
-            var refsType = typeof cfg.refs;
-            if(['string', 'object'].indexOf(refsType)){
-                if(refsType == 'string') cfg.refs = [cfg.refs];
-                var refNotMatch = true;
-                for(var key in cfg.refs){
-                    if(bodyObj.ref.match(cfg.refs[key])) {
-                        refNotMatch = false;
-                        break;
+            if(cfg.refs){
+                var refsType = typeof cfg.refs;
+                if(['string', 'object'].indexOf(refsType)){
+                    if(refsType == 'string') cfg.refs = [cfg.refs];
+                    
+                    var refNotMatch = true;
+                    for(var key in cfg.refs){
+                        if(bodyObj.ref.match(cfg.refs[key])) {
+                            refNotMatch = false;
+                            break;
+                        }
                     }
+                    if(refNotMatch) return log('No refs match. Aborting.', request.url + '.info');
                 }
-                if(refNotMatch) return log('No refs match. Aborting.', request.url + '.info');
             }
             
             if(cfg.commands.length){
