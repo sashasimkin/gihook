@@ -54,15 +54,15 @@ fs.readdir(cfg_dir, function(wtf, files){
 });
 
 //Server options
-if(process.argv[3]){
-    var run_argv = process.argv[3].split(':');
+if(process.argv[2]){
+    var run_argv = process.argv[2].split(':');
     process.env.IP = run_argv[0] || '0.0.0.0';
     process.env.PORT = run_argv[1];
 }
 process.env.IP = process.env.IP || '0.0.0.0';
-process.env.PORT = process.env.PORT || 6666;
+process.env.PORT = process.env.PORT || 8001;
 
-// create a server
+//Create Server
 http.createServer(function(request, response) {
     request.url = request.url.slice(1);
     

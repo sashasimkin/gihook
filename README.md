@@ -16,7 +16,7 @@ git clone git://github.com/sashasimkin/hook-receiver.git
 Usage
 ===
 1. Create file {{name}}.json with config object in dir config/ below about this).
-2. node app.js IP:PORT (IP non-required, but if you filled port only the command must looks like `node app.js :PORT`). Defaults `IP='0.0.0.0';PORT=6666`.
+2. node app.js IP:PORT (IP non-required, but if you filled port only the command must looks like `node app.js :PORT`). Defaults `IP='0.0.0.0';PORT=8001`.
 3. Use `http://IP:PORT/{{name}}` as hook url in github, gitlab, etc.
 
 Configuration:
