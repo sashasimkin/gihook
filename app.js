@@ -12,19 +12,20 @@ var processFile = function(fileName){
     var filePath = cfg_dir + fileName;
     var fileExt = path.extname(fileName);
     if(fileExt != '.json'){
-        return log('Problem with file "' + filePath + '". There must be .json file extension.');
+        return log('Problem with file "' + filePath + '". There must be .json file extension.', 'runtime');
     }
     
     fs.readFile(filePath, 'utf-8', function(err, data) {
+        var cfg = {};
         try{
             if(err) throw err;
             
-            var cfg = JSON.parse(data);
+            cfg = JSON.parse(data);
             if([cfg.path, cfg.user, cfg.commands].indexOf(undefined) !== -1){
                 throw new Error('Bad config file "' + filePath + '". It need to be json object with path, user and commands keys.');
             }
         } catch(e) {
-            return log('Error while processing file "' + filePath + '": ' + e);
+            return log('Error while processing file "' + filePath + '": ' + e, 'runtime');
         }
         //Populate good cfg object to objects map by filename without extension
         return cfg_map[path.basename(fileName, fileExt)] = cfg;
@@ -33,14 +34,16 @@ var processFile = function(fileName){
 
 // Readfiles to object on server start
 fs.readdir(cfg_dir, function(wtf, files){
+    var watchCallback = function(prev, next) {
+        processFile(files[i]);
+    };
+    
     for(var i in files){
         try{
             processFile(files[i]);
-            fs.watchFile(cfg_dir + files[i], function(prev, next) {
-                processFile(files[i]);
-            });
+            fs.watchFile(cfg_dir + files[i], watchCallback);
         } catch(e) {
-            log(e);
+            log(e, 'startup');
         }
     }
     
@@ -89,7 +92,7 @@ http.createServer(function(request, response) {
             }
             
             if(!fs.readdirSync(cfg.path)) {
-                return log('Invalid path "' + cfg.path + '" in config "' + request.url + '"');
+                return log('Invalid path "' + cfg.path + '" in config "' + request.url + '"', request.url + '.error');
             }
             spawn_options.cwd = cfg.path;
             
@@ -103,15 +106,15 @@ http.createServer(function(request, response) {
                         break;
                     }
                 }
-                if(refNotMatch) return log('No refs match. Aborting.');
+                if(refNotMatch) return log('No refs match. Aborting.', request.url + '.info');
             }
             
             if(cfg.commands.length){
                 var onData = function(data) {
-                    log('Command "' + commandString + '" with data: ' + data);
+                    log('Command "' + commandString + '" with data: ' + data, request.url + '.info');
                 };
                 var onError = function(data) {
-                    log('Error in command "' + commandString + '" with data: ' + data);
+                    log('Error in command "' + commandString + '" with data: ' + data, request.url + '.error');
                 };
                 
                 for(var i in cfg.commands){
@@ -125,7 +128,7 @@ http.createServer(function(request, response) {
             }
         });
         
-        response.end("Deploy in queue!");
+        response.end("Process in queue!");
     } else {
         response.writeHead(404, 'There is nothing.');
         response.end("404;");

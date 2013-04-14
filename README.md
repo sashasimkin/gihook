@@ -33,5 +33,6 @@ Configuration parameters:
 
 TODO
 ===
+* Variables in command definition
 * Commands string instade of array.
 * cfg.require parameter with applying the cfg.commands results

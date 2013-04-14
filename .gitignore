@@ -1,6 +1,7 @@
+#c9.io and my testing files
 .c9revisions/
 test/
-config/test.json
+config/*
 response.txt
 
 lib-cov
