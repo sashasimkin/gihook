@@ -138,7 +138,7 @@ http.createServer(function(request, response) {
         
         response.end("Process in queue!");
     } else {
-        response.writeHead(404, 'There is nothing.');
-        response.end("404;");
+        response.writeHead(200);
+        response.end("There is something, you don't need know.");
     }
 }).listen(process.env.PORT, process.env.IP);

@@ -1,6 +1,5 @@
 var fs = require("fs");
 var path = require("path");
-var util = require("util");
 
 var dbg = true;
 var logs_dir = __dirname + '/../logs';
@@ -26,7 +25,7 @@ exports = module.exports = function(msg, file){
         
         fs.appendFile(path.join(logs_dir, file + '.txt'), toWrite, function (err) {
             if(err) {
-                arguments.callee(err);
+                console.log(err, err.stack);
             }
         });
     }
