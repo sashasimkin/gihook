@@ -118,20 +118,22 @@ http.createServer(function(request, response) {
             }
             
             if(cfg.commands.length){
-                var onData = function(data) {
-                    log('Command "' + commandString + '" with data: ' + data, request.url + '.info');
-                };
-                var onError = function(data) {
-                    log('Error in command "' + commandString + '" with data: ' + data, request.url + '.error');
-                };
-                
                 for(var i in cfg.commands){
                     var commandArray = cfg.commands[i];
                     var commandString = commandArray.join(' ');
                     var result = child_process.spawn(commandArray.shift(), commandArray, spawn_options);
                     
-                    result.stdout.on('data', onData);
-                    result.stderr.on('data', onError);
+                    result.stdout.on('data', (function(c){
+                        return function (data) {
+                            log('Data from "' + c + '": ' + data, request.url + '.info');
+                        };
+                    })(commandString));
+                    
+                    result.stderr.on('data', (function(c){
+                        return function (data) {
+                            log('Error in "' + c + '": ' + data, request.url + '.error');
+                        };
+                    })(commandString));
                 }
             }
         });
