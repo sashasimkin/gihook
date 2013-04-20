@@ -8,6 +8,17 @@ var log = require("./logging");
 var cfg_dir = __dirname + '/config/';
 var cfg_map = {};
 
+//Format function, move somewhere
+String.prototype.fmt = function(hash) {
+    var s = this.toString();
+    if(typeof hash == 'object') {
+        for(var k in hash){
+            s = s.split('{' + k + '}').join(hash[k]);
+        }
+    }
+    return s;
+};
+
 var processFile = function(fileName){
     var filePath = cfg_dir + fileName;
     var fileExt = path.extname(fileName);
@@ -118,23 +129,35 @@ http.createServer(function(request, response) {
             }
             
             if(cfg.commands.length){
-                for(var i in cfg.commands){
-                    var commandArray = cfg.commands[i];
-                    var commandString = commandArray.join(' ');
-                    var result = child_process.spawn(commandArray.shift(), commandArray, spawn_options);
+                var executed = [];
+                
+                var processCommand = function(cmd) {
+                    var commandString = cmd.join(' ');
+                    var result = child_process.spawn(cmd.shift(), cmd, spawn_options);
                     
-                    result.stdout.on('data', (function(c){
-                        return function (data) {
-                            log('Data from "' + c + '": ' + data, request.url + '.info');
-                        };
-                    })(commandString));
-                    
-                    result.stderr.on('data', (function(c){
-                        return function (data) {
-                            log('Error in "' + c + '": ' + data, request.url + '.error');
-                        };
-                    })(commandString));
-                }
+                    result.stdout.on('data', resultCallback(commandString, 'Data from "{command}": {data}', request.url + '.info'));
+                    result.stderr.on('data', resultCallback(commandString, 'Error in "{command}": {data}', request.url + '.error'));
+                };
+                
+                var resultCallback = function(cmd_string, format, file) {
+                    return function(data) {
+                        executed.push(cmd_string);
+                        
+                        log(format.fmt({
+                            command: cmd_string,
+                            data: data
+                        }));
+                        
+                        var next = cfg.commands.shift();
+                        if(next && executed.indexOf(next.join(' ')) == -1) {
+                            processCommand(next);
+                        }
+                    };
+                };
+                
+                processCommand(cfg.commands.shift());
+            } else {
+                return log('No commands to execute.', request.url + '.info');
             }
         });
         
