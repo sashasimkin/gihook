@@ -1,6 +1,7 @@
 About
 ===
-Git web-hook receiver written in node.js
+Git web-hook receiver written in node.js.
+Created for prevent a routine work after commit. Useful if you have a server for deploy and when using git :-)
 
 Requirements
 ===
@@ -18,6 +19,7 @@ Usage
 1. Create file {{name}}.json with config object in dir config/ below about this).
 2. node app.js IP:PORT (IP non-required, but if you filled port only the command must looks like `node app.js :PORT`). Defaults `IP='0.0.0.0';PORT=8001`.
 3. Use `http://IP:PORT/{{name}}` as hook url in github, gitlab, etc.
+4. Set chmod 0777 on logging/logs/
 
 Configuration:
 ===
