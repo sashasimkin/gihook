@@ -112,19 +112,19 @@ http.createServer(function(request, response) {
             }
             spawn_options.cwd = cfg.path;
             
+            Object.keys(cfg.refs).some(function (k) {
+                    return bodyObj.ref.match(cfg.refs[k]);
+                });
+            
             if(cfg.refs){
                 var refsType = typeof cfg.refs;
                 if(['string', 'object'].indexOf(refsType)){
                     if(refsType == 'string') cfg.refs = [cfg.refs];
                     
-                    var refNotMatch = true;
-                    for(var key in cfg.refs){
-                        if(bodyObj.ref.match(cfg.refs[key])) {
-                            refNotMatch = false;
-                            break;
-                        }
-                    }
-                    if(refNotMatch) return log('No refs match. Aborting.', request.url + '.info');
+                    var suitableRef = Object.keys(cfg.refs).some(function (k) {
+                        return bodyObj.ref.match(cfg.refs[k]);
+                    });
+                    if(!suitableRef) return log('Ref does not fit. Aborting.', request.url + '.info');
                 }
             }
             
