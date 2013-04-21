@@ -104,13 +104,16 @@ http.createServer(function(request, response) {
             };
             
             if(cfg.user) {
+                //id -u {cfg.user}
                 spawn_options.uid = cfg.user;
             }
             
-            if(!fs.readdirSync(cfg.path)) {
+            try{
+                fs.readdirSync(cfg.path);
+                spawn_options.cwd = cfg.path;
+            } catch(e) {
                 return log('Invalid path "' + cfg.path + '" in config "' + request.url + '"', request.url + '.error');
             }
-            spawn_options.cwd = cfg.path;
             
             if(cfg.refs){
                 var refsType = typeof cfg.refs;
@@ -127,23 +130,21 @@ http.createServer(function(request, response) {
             if(cfg.commands.length){
                 var currentCommands = JSON.parse(JSON.stringify(cfg.commands));
                 
-                var processCommand = function(cmd) {
+                var spawnCommand = function(cmd) {
                     var commandString = cmd.join(' ');
                     var result = child_process.spawn(cmd.shift(), cmd, spawn_options);
                     
-                    result.stdout.on('data', resultCallback(commandString, 'Data from "{command}": {data}', request.url + '.info'));
-                    result.stderr.on('data', resultCallback(commandString, 'Error in "{command}": {data}', request.url + '.error'));
-                    result.on('exit', (function(cmd_string) {
-                        return function(code, signal) {
+                    result.stdout.on('data', stdioCallback(commandString, 'Data from "{command}": {data}', request.url + '.info'));
+                    result.stderr.on('data', stdioCallback(commandString, 'Error in "{command}": {data}', request.url + '.error'));
+                    result.on('exit', function(code, signal) {
                             var next = currentCommands.shift();
                             if(next) {
-                                processCommand(next);
+                                spawnCommand(next);
                             }
-                        };
-                    })(commandString));
+                        });
                 };
                 
-                var resultCallback = function(cmd_string, format, file) {
+                var stdioCallback = function(cmd_string, format, file) {
                     return function(data) {
                         log(format.fmt({
                             command: cmd_string,
@@ -152,7 +153,7 @@ http.createServer(function(request, response) {
                     };
                 };
                 
-                processCommand(currentCommands.shift());
+                spawnCommand(currentCommands.shift());
             } else {
                 return log('No commands to execute.', request.url + '.info');
             }
