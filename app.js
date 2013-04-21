@@ -112,10 +112,6 @@ http.createServer(function(request, response) {
             }
             spawn_options.cwd = cfg.path;
             
-            Object.keys(cfg.refs).some(function (k) {
-                    return bodyObj.ref.match(cfg.refs[k]);
-                });
-            
             if(cfg.refs){
                 var refsType = typeof cfg.refs;
                 if(['string', 'object'].indexOf(refsType)){
@@ -129,7 +125,7 @@ http.createServer(function(request, response) {
             }
             
             if(cfg.commands.length){
-                var executed = [];
+                var currentCommands = JSON.parse(JSON.stringify(cfg.commands));
                 
                 var processCommand = function(cmd) {
                     var commandString = cmd.join(' ');
@@ -137,25 +133,26 @@ http.createServer(function(request, response) {
                     
                     result.stdout.on('data', resultCallback(commandString, 'Data from "{command}": {data}', request.url + '.info'));
                     result.stderr.on('data', resultCallback(commandString, 'Error in "{command}": {data}', request.url + '.error'));
+                    result.on('exit', (function(cmd_string) {
+                        return function(code, signal) {
+                            var next = currentCommands.shift();
+                            if(next) {
+                                processCommand(next);
+                            }
+                        };
+                    })(commandString));
                 };
                 
                 var resultCallback = function(cmd_string, format, file) {
                     return function(data) {
-                        executed.push(cmd_string);
-                        
                         log(format.fmt({
                             command: cmd_string,
                             data: data
                         }));
-                        
-                        var next = cfg.commands.shift();
-                        if(next && executed.indexOf(next.join(' ')) == -1) {
-                            processCommand(next);
-                        }
                     };
                 };
                 
-                processCommand(cfg.commands.shift());
+                processCommand(currentCommands.shift());
             } else {
                 return log('No commands to execute.', request.url + '.info');
             }
