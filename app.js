@@ -8,34 +8,28 @@ var log = require("./logging");
 var cfg_dir = __dirname + '/config/';
 var cfg_map = {};
 
-//Format function, move somewhere
-String.prototype.fmt = function(hash) {
-    var s = this.toString();
-    if(typeof hash == 'object') {
-        for(var k in hash){
-            s = s.split('{' + k + '}').join(hash[k]);
-        }
-    }
-    return s;
-};
+//Server options
+var run_argv = process.argv[2] ? process.argv[2].split(':') : [];
+process.env.IP = process.env.IP || run_argv[0] || '0.0.0.0';
+process.env.PORT = process.env.PORT || run_argv[1] || 8001;
 
-var processFile = function(fileName){
+var processFile = function (fileName) {
     var filePath = cfg_dir + fileName;
     var fileExt = path.extname(fileName);
-    if(fileExt != '.json'){
+    if (fileExt != '.json') {
         return log('Problem with file "' + filePath + '". There must be .json file extension.', 'runtime');
     }
-    
-    fs.readFile(filePath, 'utf-8', function(err, data) {
+
+    fs.readFile(filePath, 'utf-8', function (err, data) {
         var cfg = {};
-        try{
-            if(err) throw err;
-            
+        try {
+            if (err) throw err;
+
             cfg = JSON.parse(data);
-            if([cfg.path, cfg.user, cfg.commands].indexOf(undefined) !== -1){
+            if ([cfg.path, cfg.user, cfg.commands].indexOf(undefined) !== -1) {
                 throw new Error('Bad config file "' + filePath + '". It need to be json object with path, user and commands keys.');
             }
-        } catch(e) {
+        } catch (e) {
             return log('Error while processing file "' + filePath + '": ' + e, 'runtime');
         }
         //Populate good cfg object to objects map by filename without extension
@@ -44,43 +38,70 @@ var processFile = function(fileName){
 };
 
 // Readfiles to object on server start
-fs.readdir(cfg_dir, function(wtf, files){
-    var watchCallback = function(prev, next) {
+fs.readdir(cfg_dir, function (wtf, files) {
+    var watchCallback = function (prev, next) {
         processFile(files[i]);
     };
-    
-    for(var i in files){
-        try{
+
+    for (var i in files) {
+        try {
             processFile(files[i]);
             fs.watchFile(cfg_dir + files[i], watchCallback);
-        } catch(e) {
+        } catch (e) {
             log(e, 'startup');
         }
     }
-    
+
     //Watch for changes
-    fs.watch(cfg_dir, function(event, fileName) {
+    fs.watch(cfg_dir, function (event, fileName) {
         processFile(fileName);
     });
 });
 
-//Server options
-if(process.argv[2]){
-    var run_argv = process.argv[2].split(':');
-    process.env.IP = run_argv[0] || '0.0.0.0';
-    process.env.PORT = run_argv[1];
-}
-process.env.IP = process.env.IP || '0.0.0.0';
-process.env.PORT = process.env.PORT || 8001;
+//Declare queue container
+var queue = {};
+
+//Function for task-up
+var runTask = function(task) {
+    queue[task.name].running = true;
+    var cmd = task.commands.shift();
+    if(!cmd){
+        return (queue[task.name].running = false);
+    }
+    
+    var proc = child_process.spawn(cmd.shift(), cmd, task.options),
+        cmd_string = cmd.join(' '),
+        stdout = '',
+        stderror = '';
+    
+    proc.stdout.on('data', function(data) { stdout += data; });
+    proc.stderr.on('data', function(data) { stderror += data; });
+    proc.on('exit', function (code, signal) {
+        //Log results of current command
+        if(stdout) log('Data from "' + cmd_string + '": ' + stdout, task.name + '.info');
+        if(stderror) log('Errors in "' + cmd_string + '": ' + stderror, task.name + '.error');
+        //Run next task, pass reference to current task
+        runTask(task);
+    });
+};
+
+//Run task sheduler, lol
+setInterval(function () {
+    for(var name in queue){
+        if(queue[name].tasks.length && !queue[name].running){
+            runTask(queue[name].tasks.shift());
+        }
+    }
+}, 1000);
 
 //Create Server
-http.createServer(function(request, response) {
+http.createServer(function (request, response) {
+    //Strip request.url, remove first slash
     request.url = request.url.slice(1);
-    
     //Prevent favicon.ico requests
-    if(request.url == 'favicon.ico') return request.connection.destroy();
-    
-    if(request.method == 'POST' && cfg_map[request.url]){
+    if (request.url == 'favicon.ico') return request.connection.destroy();
+
+    if (request.method == 'POST' && cfg_map[request.url]) {
         var body = '';
         request.on('data', function (data) {
             body += data;
@@ -89,77 +110,61 @@ http.createServer(function(request, response) {
                 request.connection.destroy();
             }
         });
-        
+
         request.on('end', function () {
-            try{
+            try {
                 var bodyObj = JSON.parse(body);
-            } catch(e) {
+            } catch (e) {
                 return log('Malformed json. Request body: ' + body, request.url + '.error');
             }
             
-            var cfg = cfg_map[request.url];
+            //We need object copy!
+            var cfg = JSON.parse(JSON.stringify(cfg_map[request.url]));
             var spawn_options = {
                 encoding: "utf-8",
                 env: process.env
             };
-            
-            if(cfg.user) {
-                //id -u {cfg.user}
+
+            if (cfg.user) {
                 spawn_options.uid = cfg.user;
             }
-            
-            try{
+
+            try {
                 fs.readdirSync(cfg.path);
                 spawn_options.cwd = cfg.path;
-            } catch(e) {
+            } catch (e) {
                 return log('Invalid path "' + cfg.path + '" in config "' + request.url + '"', request.url + '.error');
             }
-            
-            if(cfg.refs){
+
+            if (cfg.refs) {
                 var refsType = typeof cfg.refs;
-                if(['string', 'object'].indexOf(refsType)){
-                    if(refsType == 'string') cfg.refs = [cfg.refs];
-                    
+                if (['string', 'object'].indexOf(refsType)) {
+                    if (refsType == 'string') cfg.refs = [cfg.refs];
+
                     var suitableRef = Object.keys(cfg.refs).some(function (k) {
                         return bodyObj.ref.match(cfg.refs[k]);
                     });
-                    if(!suitableRef) return log('Ref does not fit. Aborting.', request.url + '.info');
+                    if (!suitableRef) return log('Ref does not fit. Aborting.', request.url + '.info');
                 }
             }
-            
-            if(cfg.commands.length){
-                var currentCommands = JSON.parse(JSON.stringify(cfg.commands));
-                
-                var spawnCommand = function(cmd) {
-                    var commandString = cmd.join(' ');
-                    var result = child_process.spawn(cmd.shift(), cmd, spawn_options);
-                    
-                    result.stdout.on('data', stdioCallback(commandString, 'Data from "{command}": {data}', request.url + '.info'));
-                    result.stderr.on('data', stdioCallback(commandString, 'Error in "{command}": {data}', request.url + '.error'));
-                    result.on('exit', function(code, signal) {
-                            var next = currentCommands.shift();
-                            if(next) {
-                                spawnCommand(next);
-                            }
-                        });
-                };
-                
-                var stdioCallback = function(cmd_string, format, file) {
-                    return function(data) {
-                        log(format.fmt({
-                            command: cmd_string,
-                            data: data
-                        }));
+
+            if (cfg.commands.length) {
+                cfg.name = request.url;
+                cfg.options = spawn_options;
+                if(typeof queue[request.url] == 'object'){
+                    queue[request.url].tasks.push(cfg);
+                } else {
+                    queue[request.url] = {
+                        running: false,
+                        tasks: [ cfg ]
                     };
-                };
-                
-                spawnCommand(currentCommands.shift());
+                }
             } else {
                 return log('No commands to execute.', request.url + '.info');
             }
         });
-        
-        response.end("Process in queue!");
+
+        response.end("Task added to queue!");
     } else {
         response.writeHead(200);
         response.end("There is something, you don't need know.");

@@ -35,6 +35,8 @@ Configuration parameters:
 
 TODO
 ===
+* Queue class with container inside and few helper methods, shift the save state problem on it.
+* Get user id in system (id -u {cfg.user})
 * Variables in command definition
 * Commands string instade of array.
 * cfg.require parameter with applying the cfg.commands results
