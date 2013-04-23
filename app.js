@@ -3,7 +3,8 @@ var http = require("http");
 var fs = require("fs");
 var path = require("path");
 var child_process = require('child_process');
-var log = require("./logging");
+var log = require("./lib/logging");
+var TaskManager = require("./lib/tasks/TaskManager");
 //Runtime variables
 var cfg_dir = __dirname + '/config/';
 var cfg_map = {};
@@ -58,40 +59,39 @@ fs.readdir(cfg_dir, function (wtf, files) {
     });
 });
 
-//Declare queue container
-var queue = {};
-
-//Function for task-up
-var runTask = function(task) {
-    queue[task.name].running = true;
+var runTask = function (task) {
+    task.started();
     var cmd = task.commands.shift();
-    if(!cmd){
-        return (queue[task.name].running = false);
+    if (!cmd) {
+        return task.stopped();
     }
-    
+
     var proc = child_process.spawn(cmd.shift(), cmd, task.options),
         cmd_string = cmd.join(' '),
         stdout = '',
         stderror = '';
-    
-    proc.stdout.on('data', function(data) { stdout += data; });
-    proc.stderr.on('data', function(data) { stderror += data; });
+
+    proc.stdout.on('data', function (data) {
+        stdout += data;
+    });
+    proc.stderr.on('data', function (data) {
+        stderror += data;
+    });
     proc.on('exit', function (code, signal) {
         //Log results of current command
-        if(stdout) log('Data from "' + cmd_string + '": ' + stdout, task.name + '.info');
-        if(stderror) log('Errors in "' + cmd_string + '": ' + stderror, task.name + '.error');
+        if (stdout) log('Data from "' + cmd_string + '": ' + stdout, task.name + '.info');
+        if (stderror) log('Errors in "' + cmd_string + '": ' + stderror, task.name + '.error');
         //Run next task, pass reference to current task
         runTask(task);
     });
 };
 
-//Run task sheduler, lol
-setInterval(function () {
-    for(var name in queue){
-        if(queue[name].tasks.length && !queue[name].running){
-            runTask(queue[name].tasks.shift());
-        }
-    }
+//Get initial variables, or move it inside class
+var initial = {};
+var queue = new TaskManager(initial);
+
+queue.run(function () {
+    runTask(this);
 }, 1000);
 
 //Create Server
@@ -117,7 +117,7 @@ http.createServer(function (request, response) {
             } catch (e) {
                 return log('Malformed json. Request body: ' + body, request.url + '.error');
             }
-            
+
             //We need object copy!
             var cfg = JSON.parse(JSON.stringify(cfg_map[request.url]));
             var spawn_options = {
@@ -151,14 +151,8 @@ http.createServer(function (request, response) {
             if (cfg.commands.length) {
                 cfg.name = request.url;
                 cfg.options = spawn_options;
-                if(typeof queue[request.url] == 'object'){
-                    queue[request.url].tasks.push(cfg);
-                } else {
-                    queue[request.url] = {
-                        running: false,
-                        tasks: [ cfg ]
-                    };
-                }
+
+                queue.push(request.url, cfg);
             } else {
                 return log('No commands to execute.', request.url + '.info');
             }

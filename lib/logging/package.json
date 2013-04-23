@@ -6,7 +6,7 @@
     "name": "Sash Simkin",
     "email": "sashasimkin@gmail.com"
   },
-  "main": "lib/log",
+  "main": "log",
   "engines": {
     "node": ">=0.6.21"
   },
