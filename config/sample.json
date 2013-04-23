@@ -3,9 +3,9 @@
     "refs": [
         "refs/heads/*"
     ],
-    "user": "shell-user",
     "commands": [
-        ["git", "fetch", "--all"],
-        ["git", "reset", "--hard", "origin/master"]
+        "git clone git://github.com/sashasimkin/hook-receiver.git",
+        "git fetch --all",
+        "git reset --hard origin/master"
     ]
 }

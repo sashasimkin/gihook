@@ -2,94 +2,90 @@
 var http = require("http");
 var fs = require("fs");
 var path = require("path");
-var child_process = require('child_process');
-var log = require("./lib/logging");
-var TaskManager = require("./lib/tasks/TaskManager");
-//Runtime variables
-var cfg_dir = __dirname + '/config/';
-var cfg_map = {};
+var exec = require('child_process').exec;
+var log = require("./lib/log");
+var TaskManager = require("./lib/TaskManager");
 
-//Server options
+//IP and PORT for web-server
 var run_argv = process.argv[2] ? process.argv[2].split(':') : [];
 process.env.IP = process.env.IP || run_argv[0] || '0.0.0.0';
 process.env.PORT = process.env.PORT || run_argv[1] || 8001;
 
-var processFile = function (fileName) {
-    var filePath = cfg_dir + fileName;
-    var fileExt = path.extname(fileName);
-    if (fileExt != '.json') {
-        return log('Problem with file "' + filePath + '". There must be .json file extension.', 'runtime');
-    }
-
-    fs.readFile(filePath, 'utf-8', function (err, data) {
-        var cfg = {};
-        try {
-            if (err) throw err;
-
-            cfg = JSON.parse(data);
-            if ([cfg.path, cfg.user, cfg.commands].indexOf(undefined) !== -1) {
-                throw new Error('Bad config file "' + filePath + '". It need to be json object with path, user and commands keys.');
-            }
-        } catch (e) {
-            return log('Error while processing file "' + filePath + '": ' + e, 'runtime');
-        }
-        //Populate good cfg object to objects map by filename without extension
-        return cfg_map[path.basename(fileName, fileExt)] = cfg;
-    });
+//Runtime variables
+var cfg = {
+    dir: __dirname + '/config/',
+    map: {}
 };
 
-// Readfiles to object on server start
-fs.readdir(cfg_dir, function (wtf, files) {
-    var watchCallback = function (prev, next) {
-        processFile(files[i]);
-    };
+/**
+ * Validate file and add to cfg map if valid
+ */
+var processFile = function (fName) {
+    var fPath = path.join(cfg.dir, fName),
+        fExt = path.extname(fName);
+    
+    if (fExt != '.json') return log('Problem with file "' + fPath + '". There must be .json file extension.', 'runtime');
+    
+    try{
+        delete require.cache[fPath];
+        var data = require(fPath);
+        
+        if (!(data.path && typeof data.commands == 'object' && data.commands.length)) {
+            throw new Error('Bad config file "' + fPath + '". It need to be json object with path and commands keys.');
+        }
+        
+        fs.readdirSync(data.path);
+        
+        return cfg.map[path.basename(fName, fExt)] = data;
+    } catch(e) {
+        return log('Error while processing file "' + fPath + '": ' + e, 'runtime');
+    }
+};
 
-    for (var i in files) {
+/**
+ * Callback for file-watchers
+ */
+var watchCallback = function(file) {
+    processFile(file);
+    return function (curr, prev) {
+        if(prev.mtime != curr.mtime) processFile(file);
+    };
+};
+//Readfiles to object on app start
+fs.readdir(cfg.dir, function (err, files) {
+    if(err) return log(err, 'startup');
+    
+    files.map(function(file, i) {
         try {
-            processFile(files[i]);
-            fs.watchFile(cfg_dir + files[i], watchCallback);
+            fs.watchFile(path.join(cfg.dir, file), watchCallback(file));
         } catch (e) {
             log(e, 'startup');
         }
-    }
-
-    //Watch for changes
-    fs.watch(cfg_dir, function (event, fileName) {
-        processFile(fileName);
     });
 });
 
+//Watch for changes in directory
+fs.watch(cfg.dir, function (event, fName) {
+    processFile(fName);
+});
+
 var runTask = function (task) {
-    task.started();
-    var cmd = task.commands.shift();
-    if (!cmd) {
-        return task.stopped();
+    task.running();
+    var command = task.commands.shift();
+    if (!command) {
+        return task.finished();
     }
-
-    var proc = child_process.spawn(cmd.shift(), cmd, task.options),
-        cmd_string = cmd.join(' '),
-        stdout = '',
-        stderror = '';
-
-    proc.stdout.on('data', function (data) {
-        stdout += data;
-    });
-    proc.stderr.on('data', function (data) {
-        stderror += data;
-    });
-    proc.on('exit', function (code, signal) {
-        //Log results of current command
-        if (stdout) log('Data from "' + cmd_string + '": ' + stdout, task.name + '.info');
-        if (stderror) log('Errors in "' + cmd_string + '": ' + stderror, task.name + '.error');
-        //Run next task, pass reference to current task
+    
+    exec(command, task.options, function(err, stdout, stderr) {
+        if (stdout) log('Data from "' + command + '": ' + stdout, task.name + '.info');
+        if (stderr) log('Error in "' + command + '": ' + stderr, task.name + '.error');
+        
         runTask(task);
     });
 };
 
-//Get initial variables, or move it inside class
-var initial = {};
-var queue = new TaskManager(initial);
-
+//Setup task manager
+var queue = new TaskManager();
 queue.run(function () {
     runTask(this);
 }, 1000);
@@ -99,9 +95,9 @@ http.createServer(function (request, response) {
     //Strip request.url, remove first slash
     request.url = request.url.slice(1);
     //Prevent favicon.ico requests
-    if (request.url == 'favicon.ico') return request.connection.destroy();
+    if (request.methom == 'GET' && request.url == 'favicon.ico') return request.connection.destroy();
 
-    if (request.method == 'POST' && cfg_map[request.url]) {
+    if (request.method == 'POST' && cfg.map[request.url]) {
         var body = '';
         request.on('data', function (data) {
             body += data;
@@ -117,42 +113,29 @@ http.createServer(function (request, response) {
             } catch (e) {
                 return log('Malformed json. Request body: ' + body, request.url + '.error');
             }
-
             //We need object copy!
-            var cfg = JSON.parse(JSON.stringify(cfg_map[request.url]));
-            var spawn_options = {
+            var task = JSON.parse(JSON.stringify(cfg.map[request.url]));
+            task.name = request.url;
+            task.options = {
                 encoding: "utf-8",
-                env: process.env
+                env: process.env,
+                cwd: task.path
             };
 
-            if (cfg.user) {
-                spawn_options.uid = cfg.user;
-            }
-
-            try {
-                fs.readdirSync(cfg.path);
-                spawn_options.cwd = cfg.path;
-            } catch (e) {
-                return log('Invalid path "' + cfg.path + '" in config "' + request.url + '"', request.url + '.error');
-            }
-
-            if (cfg.refs) {
-                var refsType = typeof cfg.refs;
+            if (task.refs) {
+                var refsType = typeof task.refs;
                 if (['string', 'object'].indexOf(refsType)) {
-                    if (refsType == 'string') cfg.refs = [cfg.refs];
+                    if (refsType == 'string') task.refs = [task.refs];
 
-                    var suitableRef = Object.keys(cfg.refs).some(function (k) {
-                        return bodyObj.ref.match(cfg.refs[k]);
+                    var suitableRef = Object.keys(task.refs).some(function (k) {
+                        return bodyObj.ref.match(task.refs[k]);
                     });
                     if (!suitableRef) return log('Ref does not fit. Aborting.', request.url + '.info');
                 }
             }
 
-            if (cfg.commands.length) {
-                cfg.name = request.url;
-                cfg.options = spawn_options;
-
-                queue.push(request.url, cfg);
+            if (task.commands.length) {
+                queue.push(request.url, task);
             } else {
                 return log('No commands to execute.', request.url + '.info');
             }

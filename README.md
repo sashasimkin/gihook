@@ -1,25 +1,23 @@
 About
 ===
 Git web-hook receiver written in node.js.
-Created for prevent a routine work after commit. Useful if you have a server for deploy and when using git :-)
+Created for prevent a routine work after commit. Useful if you have a server for deploy and using git :-)
 
 Requirements
 ===
 * nodejs >= v0.6.21
-* System: linux, *bsd(tested on Ubuntu)
+* System: Linux(tested on Ubuntu), *BSD(Not tested)
 
 Instalation
 ===
 ```
 git clone git://github.com/sashasimkin/hook-receiver.git
 ```
-
-Usage
-===
-1. Create file {{name}}.json with config object in dir config/ below about this).
-2. node app.js IP:PORT (IP non-required, but if you filled port only the command must looks like `node app.js :PORT`). Defaults `IP='0.0.0.0';PORT=8001`.
-3. Use `http://IP:PORT/{{name}}` as hook url in github, gitlab, etc.
-4. Set chmod 0777 on logs/ directory
+1. `cd hook-reciever/`
+2. `chmod 0777 logs/`
+2. Create file `{name}.json` with config object in directory `config/` (Below about its contents).
+3. run server `node app.js IP:PORT` (IP non-required, but if you filled port only the command must looks like `node app.js :PORT`). Defaults `IP="0.0.0.0";PORT=8001`.
+4. Use `http://IP:PORT/{name}` as hook url in github, gitlab, etc.
 
 Configuration:
 ===
@@ -27,16 +25,13 @@ It is a json file with json object inside in directory config/. This configurati
 
 Configuration parameters:
 ===
-* `user` - System user, from which will be performed commands
-* `path` - root path for project, shell commans has been executed there
-* `commands` - Shell commands, which will be performed after recieve hook
-* `refs` - Non-required, if ref not match, any operation will not be performed. string or array of strings which be substituted to ref.match()
+* `path` - Root path for project, shell commands has been executed here
+* `commands` - Array of shell commands, which will be performed after recieve hook
+* `refs` - Commits ref to match. String or array of strings which will be substituted to ref.match()
 
 
 TODO
 ===
-* Queue state persistence
-* Get user id in system (id -u {cfg.user})
 * Variables in command definition
 * Commands string instade of array
-* cfg.require parameter with applying the cfg.commands results
+* cfg.require parameter - such as cfg.commands, but javascript files for inclusion
