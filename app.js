@@ -1,10 +1,8 @@
-//Dependencies
-var http = require("http");
-var fs = require("fs");
-var path = require("path");
+var http = require('http');
 var exec = require('child_process').exec;
-var log = require("./lib/log");
-var TaskManager = require("./lib/TaskManager");
+var logger = require('./lib/logger');
+var TaskManager = require('./lib/TaskManager');
+String.prototype.fmt = require('./lib/format');
 
 //IP and PORT for web-server
 var run_argv = process.argv[2] ? process.argv[2].split(':') : [];
@@ -17,57 +15,8 @@ var cfg = {
     map: {}
 };
 
-/**
- * Validate file and add to cfg map if valid
- */
-var processFile = function (fName) {
-    var fPath = path.join(cfg.dir, fName),
-        fExt = path.extname(fName);
-    
-    if (fExt != '.json') return log('Problem with file "' + fPath + '". There must be .json file extension.', 'runtime');
-    
-    try{
-        delete require.cache[fPath];
-        var data = require(fPath);
-        
-        if (!(data.path && typeof data.commands == 'object' && data.commands.length)) {
-            throw new Error('Bad config file "' + fPath + '". It need to be json object with path and commands keys.');
-        }
-        
-        fs.readdirSync(data.path);
-        
-        return cfg.map[path.basename(fName, fExt)] = data;
-    } catch(e) {
-        return log('Error while processing file "' + fPath + '": ' + e, 'runtime');
-    }
-};
-
-/**
- * Callback for file-watchers
- */
-var watchCallback = function(file) {
-    processFile(file);
-    return function (curr, prev) {
-        if(prev.mtime != curr.mtime) processFile(file);
-    };
-};
-//Readfiles to object on app start
-fs.readdir(cfg.dir, function (err, files) {
-    if(err) return log(err, 'startup');
-    
-    files.map(function(file, i) {
-        try {
-            fs.watchFile(path.join(cfg.dir, file), watchCallback(file));
-        } catch (e) {
-            log(e, 'startup');
-        }
-    });
-});
-
-//Watch for changes in directory
-fs.watch(cfg.dir, function (event, fName) {
-    processFile(fName);
-});
+//Observe configs
+require("./lib/observeConfigs")(cfg.dir, cfg.map);
 
 var runTask = function (task) {
     task.running();
@@ -77,8 +26,8 @@ var runTask = function (task) {
     }
     
     exec(command, task.options, function(err, stdout, stderr) {
-        if (stdout) log('Data from "' + command + '": ' + stdout, task.name + '.info');
-        if (stderr) log('Error in "' + command + '": ' + stderr, task.name + '.error');
+        if (stdout) logger(task.name + '.info').log('Data from "' + command + '": ' + stdout);
+        if (stderr) logger(task.name + '.error').log('Error in "' + command + '": ' + stderr);
         
         runTask(task);
     });
@@ -92,6 +41,7 @@ queue.run(function () {
 
 //Create Server
 http.createServer(function (request, response) {
+    logger('access').log('Request on: ' + request.url);
     //Strip request.url, remove first slash
     request.url = request.url.slice(1);
     //Prevent favicon.ico requests
@@ -109,9 +59,9 @@ http.createServer(function (request, response) {
 
         request.on('end', function () {
             try {
-                var bodyObj = JSON.parse(body);
+                var payload = JSON.parse(body);
             } catch (e) {
-                return log('Malformed json. Request body: ' + body, request.url + '.error');
+                return logger(request.url + '.error').log('Malformed json. Request body: ' + body);
             }
             //We need object copy!
             var task = JSON.parse(JSON.stringify(cfg.map[request.url]));
@@ -128,16 +78,26 @@ http.createServer(function (request, response) {
                     if (refsType == 'string') task.refs = [task.refs];
 
                     var suitableRef = Object.keys(task.refs).some(function (k) {
-                        return bodyObj.ref.match(task.refs[k]);
+                        return payload.ref.match(task.refs[k]);
                     });
-                    if (!suitableRef) return log('Ref does not fit. Aborting.', request.url + '.info');
+                    if (!suitableRef) return logger(request.url + '.info').log('Ref does not fit. Aborting.');
                 }
             }
 
             if (task.commands.length) {
+                //Access to payload and task from command definition
+                task.commands.map(function(el, i) {
+                    try{
+                        return el.fmt({payload:payload, task:task});
+                    } catch(e) {
+                        logger(request.url + '.info').log('Command must be string.' + e.stack);
+                        return '';
+                    }
+                });
+                
                 queue.push(request.url, task);
             } else {
-                return log('No commands to execute.', request.url + '.info');
+                return logger(request.url + '.info').log('No commands to execute.');
             }
         });
 

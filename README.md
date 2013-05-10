@@ -30,12 +30,10 @@ It is a json file with json object inside in directory config/. This configurati
 Configuration parameters:
 ===
 * `path` - Root path for project, shell commands has been executed here
-* `commands` - Array of shell commands, which will be performed after recieve hook
+* `commands` - Array of shell commands, which will be performed after recieve hook (Supported {payload.*} and {task.*})
 * `refs` - payload.ref to match. String or array of strings which will be substituted to ref.match()
 
 
 TODO
 ===
-* Add lib/format.js for use as String.ftm, and accept {task: task, payload: bodyObj} to any config entry
-* cfg.require parameter - such as cfg.commands, but for javascript files 
-(Ex: `with({task: task, payload: bodyObj}){ require(cfg.require[i]); }`) after executing cfg.commands
+* Support a few payload formats
