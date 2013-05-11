@@ -1,4 +1,5 @@
 var http = require('http');
+var querystring = require("querystring");
 var exec = require('child_process').exec;
 var logger = require('./lib/logger');
 var TaskManager = require('./lib/TaskManager');
@@ -58,8 +59,10 @@ http.createServer(function (request, response) {
         });
 
         request.on('end', function () {
+            var parsed = querystring.parse(body);
+            var payload = parsed.payload || Object.keys(parsed)[0];
             try {
-                var payload = JSON.parse(body);
+                payload = JSON.parse(payload);
             } catch (e) {
                 return logger(request.url + '.error').log('Malformed json. Request body: ' + body);
             }

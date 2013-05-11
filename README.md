@@ -36,4 +36,4 @@ Configuration parameters:
 
 TODO
 ===
-* Support a few payload formats
+Now nothing :-)
