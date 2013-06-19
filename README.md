@@ -32,8 +32,3 @@ Configuration parameters:
 * `path` - Root path for project, shell commands has been executed here
 * `commands` - Array of shell commands, which will be performed after recieve hook (Supported {payload.*} and {task.*})
 * `refs` - payload.ref to match. String or array of strings which will be substituted to ref.match()
-
-
-TODO
-===
-Now nothing :-)
