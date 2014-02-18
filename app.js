@@ -59,8 +59,6 @@ app.post('/:config', function(req, res) {
     var config_name = req.params.config;
     var config = cfg.map[config_name];
 
-console.log(req.body);
-
     if (!config || req.body.zen) {
         logger(config_name + '.error').log('Invalid request for config: ' + config_name);
         // Log invalid request
