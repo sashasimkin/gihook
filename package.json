@@ -1,0 +1,27 @@
+{
+  "name": "gihook",
+  "version": "0.7.0",
+  "private": true,
+  "scripts": {
+    "start": "node app.js"
+  },
+  "dependencies": {
+    "express": "3.4.8"
+  },
+  "description": "About\r ===\r Git [web-hook](https://help.github.com/articles/post-receive-hooks) receiver written in node.js.\r Created for prevent a routine work, such as working with database, static files, etc., after pushing changes to repo.",
+  "main": "app.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sashasimkin/gihook.git"
+  },
+  "keywords": [
+    "git",
+    "web-hook"
+  ],
+  "author": "Sasha Simkin <sashasimkin@gmail.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/sashasimkin/gihook/issues"
+  },
+  "homepage": "https://github.com/sashasimkin/gihook"
+}

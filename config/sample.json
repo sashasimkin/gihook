@@ -4,7 +4,8 @@
         "refs/heads/*"
     ],
     "commands": [
-        "git clone git://github.com/sashasimkin/hook-receiver.git",
+        "echo \"Repository home: {payload.repository.homepage}\"",
+        "echo \"Path is: {task.path}\"",
         "git fetch --all",
         "git reset --hard origin/master"
     ]
