@@ -1,0 +1,25 @@
+{
+  "name": "gihook",
+  "version": "0.0.1",
+  "homepage": "https://github.com/sashasimkin/gihook",
+  "authors": [
+    "Sasha Simkin <sashasimkin@gmail.com>"
+  ],
+  "license": "MIT",
+  "private": true,
+  "ignore": [
+    "**/.*",
+    ".jshintrc",
+    "**/*.txt",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ],
+  "dependencies": {
+    "angular": "1.2.16",
+    "bootstrap": "3.1.1",
+    "jquery": "1.11.0",
+    "angular-ui-router": "0.2.8-bowratic-tedium"
+  }
+}
