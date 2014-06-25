@@ -1,3 +1,5 @@
+var Logger = require('../lib/Logger');
+
 exports = module.exports = {
   // Main route that responsible for each request
   main: function (configs) {
@@ -65,6 +67,6 @@ exports = module.exports = {
     res.send("There is nothing. Go ahead!");
   },
   dashboard: function(req, res) {
-
+    return res.render('dashboard');
   }
 };

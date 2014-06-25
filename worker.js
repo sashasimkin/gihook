@@ -8,11 +8,11 @@ process.on('message', function (task) {
     if(!task.commands.hasOwnProperty(i)) continue;
 
     var command = task.commands[i];
-    var cres = sh.exec(command);
+    var cRes = sh.exec(command);
 
-    result += cres.stdout;
+    result += cRes.stdout;
 
-    if(cres.code !== 0) {
+    if(cRes.code !== 0) {
       break;
     }
   }

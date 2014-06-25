@@ -8,5 +8,8 @@
         "echo \"Path is: {task.path}\"",
         "git fetch --all",
         "git reset --hard origin/master"
-    ]
+    ],
+    "onSuccess": [],
+    "onFail": [],
+    "emails": []
 }

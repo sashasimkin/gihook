@@ -14,22 +14,33 @@ String.prototype.fmt = require('./lib/format');
 // Process cli arguments
 var opts = require("./lib/options");
 
-// Setup express-related settings
+// Setup express-related settings and middlewares
 app.set('views', path.join(__dirname, 'views'));
-app.set('view engine', 'jade');
+app.engine('html', require('consolidate').hogan);
+app.set('view engine', 'html');
 
-app.use(express.json());
-app.use(express.urlencoded());
-app.use(express.methodOverride());
-app.use(express.cookieParser('uFS&*04DH437SFDG^DFG4dfhr87su*&'));
-app.use(express.session());
-app.use(express.csrf());
+var bodyParser = require('body-parser');
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded());
 
-app.use(express.favicon(__dirname + '/public/favicon.ico'));
+var cookieParser = require('cookie-parser');
+app.use(cookieParser('uFS&*04DH437SFDG^DFG4dfhr87su*&'));
+
+var session = require('express-session');
+app.use(session({
+    name: 'abrakadabra',
+    secret: 'moarMeow'
+}));
+
+var csrf = require('csurf');
+app.use(csrf());
+
+
+// app.use(express.favicon(__dirname + '/public/favicon.ico'));
 
 // Routes in application
 var main = require('./routes/main');
-var api = require('./routes/api');
+
 
 // Set logs directory
 if(opts.logs) {
@@ -43,23 +54,28 @@ if (opts.debug) {
   app.locals.pretty = true; // Jade pretty html output
 }
 
-app.use(express.static(__dirname + '/public'));
-app.use(app.router);
+app.use('/static', express.static(__dirname + '/public'));
+
 
 // Load configs to persistent for process object
 var configs = require("./lib/loadConfigs")(opts.config);
 
 require('./lib/runner')(configs);
 
-app.get('/', main.dashboard(configs));
+// app.get('/', main.dashboard(configs));
 
-app.get('/api/:config', api.getCfg);
-app.put('/api/:config', api.save);
+var api = require('./routes/api');
+app.use(api);
+
+app.route('/manage').get(main.dashboard);
 
 // Main route that responsible for each request
-app.post('/:config', main.main);
+// Just push element into queue
+app.route('/:config').post(main.main);
+
 // Fallback for all unmapped requests
-app.all('*', main.fallback);
+app.route('*').all(main.fallback);
+
 
 process.on('uncaughtException', function(err) {
     if(err.errno === 'EADDRINUSE') {
@@ -71,7 +87,6 @@ process.on('uncaughtException', function(err) {
     process.exit(1);
 });
 
-
 http.createServer(app).listen(process.env.PORT, process.env.IP, function() {
-    console.log('GiHook got running on ' + process.env.IP + ':' + process.env.PORT + ' Enjoy!');
+    console.log('GiHook just running on ' + process.env.IP + ':' + process.env.PORT + ' Enjoy!');
 });

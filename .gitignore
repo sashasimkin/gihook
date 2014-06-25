@@ -1,5 +1,6 @@
 #c9.io and my testing files
 .c9revisions/
+.c9/
 test/
 config/*
 response.txt
