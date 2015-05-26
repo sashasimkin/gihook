@@ -22,5 +22,6 @@ npm-debug.log
 
 *.sublime-project
 *.sublime-workspace
+*.iml
 
 .idea/
