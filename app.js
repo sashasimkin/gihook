@@ -98,6 +98,8 @@ app.post('/:config', function(req, res) {
     var config = configs[config_name];
     var logger = new Logger(config_name);
 
+    res.send(".");
+
     if (!config || req.body.zen) {
         logger.error('Invalid request for config: ' + config_name);
         // Log invalid request
@@ -146,8 +148,6 @@ app.post('/:config', function(req, res) {
     } else {
         return logger.info('No commands to execute.');
     }
-
-    res.send(".");
 });
 
 app.all('*', function(req, res) {
